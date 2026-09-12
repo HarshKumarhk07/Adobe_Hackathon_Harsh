@@ -1,0 +1,34 @@
+{
+  "Organization": {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "{{DOMAIN_NAME}}",
+    "url": "https://{{DOMAIN_NAME}}",
+    "logo": "https://{{DOMAIN_NAME}}/logo.png",
+    "sameAs": [
+      "https://www.wikidata.org/wiki/Q00000",
+      "https://www.linkedin.com/company/{{DOMAIN_KEY}}",
+      "https://twitter.com/{{DOMAIN_KEY}}"
+    ]
+  },
+  "WebSite": {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "{{DOMAIN_NAME}}",
+    "url": "https://{{DOMAIN_NAME}}"
+  },
+  "FAQPage": {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is {{DOMAIN_NAME}}?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "{{DOMAIN_NAME}} provides leading solutions."
+        }
+      }
+    ]
+  }
+}
