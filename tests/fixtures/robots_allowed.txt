@@ -1,0 +1,9 @@
+# Open robots.txt allowing all crawlers
+User-agent: *
+Allow: /
+Disallow: /private/
+
+User-agent: GPTBot
+Allow: /
+
+Sitemap: https://example.com/sitemap.xml

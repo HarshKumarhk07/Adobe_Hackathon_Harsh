@@ -15,9 +15,9 @@ Use when auditing on-site visitor retention, primary heading orientation clarity
 ## Procedure
 1. **Load UX Guidelines**: Read `references/ux-rules.md` for visitor orientation and machine-readable image standards.
 2. **Execute Engagement Check Script**: Run `python scripts/check_engagement.py --url <target_url>`.
-3. **Above-the-Fold Orientation Check**: Inspect DOM for `<h1>`. Emit `high` severity finding if missing or `medium` severity if vague.
+3. **Above-the-Fold Orientation Check**: Inspect DOM for `<h1>`. Emit `high` severity finding if missing or `medium` severity if vague single-word headline (e.g., "Welcome", "Home").
 4. **Facts Locked in Non-Text**: Inspect all `<img>` tags for missing or trivial `alt` attributes. Flag `medium` severity finding if > 30% are missing or trivial.
-5. **Proactive Retention Enhancement**: Emit a `low` proactive suggestion for sticky micro-breadcrumbs and anchor jump-links.
+5. **Contextual Deep-Link Retention**: Evaluate documents with multi-section depth (>= 2 section headings). Emit `medium` severity opportunity if the page lacks in-page anchor jump links (`<a href="#...">`) and breadcrumb navigation cues.
 6. **Output JSON Findings**: Print standard array of findings objects.
 
 ## Output

@@ -11,16 +11,18 @@ Use as the designated entrypoint to audit any target website or domain for AI di
 
 ## Inputs
 - `--url`: Target website URL or domain name (e.g. `example.com` or `https://example.com`).
+- `--output`: Optional path to save the output JSON report file.
+- `--timeout`: Optional execution timeout in seconds per child skill (default: 35s).
 
 ## Procedure
 1. **Initialize Audit Request**: Parse target URL and resolve domain name (`site`). Capture ISO-8601 UTC timestamp (`audited_at`).
-2. **Invoke Crawl-Render Audit**: Execute `python skills/crawl-render-audit/scripts/check_crawl.py --url <target_url>` with a 40s timeout.
-3. **Invoke Semantic Authority Audit**: Execute `python skills/semantic-authority-audit/scripts/check_schema.py --url <target_url>` with a 40s timeout.
-4. **Invoke Engagement Audit**: Execute `python skills/engagement-audit/scripts/check_engagement.py --url <target_url>` with a 40s timeout.
+2. **Invoke Crawl-Render Audit**: Execute `python skills/crawl-render-audit/scripts/check_crawl.py --url <target_url>` with a 35s timeout.
+3. **Invoke Semantic Authority Audit**: Execute `python skills/semantic-authority-audit/scripts/check_schema.py --url <target_url>` with a 35s timeout.
+4. **Invoke Engagement Audit**: Execute `python skills/engagement-audit/scripts/check_engagement.py --url <target_url>` with a 35s timeout.
 5. **Aggregate & Format Findings**: Assign sequential IDs (`F-001`, `F-002`, ...), count findings by severity (`total_findings`, `critical`, `high`, `medium`, `low`), and format prioritized suggested actions.
-6. **Emit Audit Report**: Print schema-compliant JSON report directly to stdout.
+6. **Emit Audit Report**: Print schema-compliant JSON report directly to stdout and optionally write to the output filepath.
 
-## Output
+## Output Schema
 ```json
 {
   "site": "example.com",

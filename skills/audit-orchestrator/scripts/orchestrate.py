@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-orchestrate.py - Resilient Master Entrypoint Orchestrator Script
-Executes crawl-render-audit, semantic-authority-audit, and engagement-audit sub-skills via subprocess
-with a strict 35s timeout per child script. Catches execution & network errors gracefully, guaranteeing valid JSON schema output.
+orchestrate.py - Master Entrypoint Orchestrator Script
+Coordinates crawl-render-audit, semantic-authority-audit, and engagement-audit sub-skills via subprocess
+with a 35s timeout per child script. Aggregates findings into a schema-compliant JSON report.
 """
 
 import sys
@@ -12,12 +12,19 @@ import argparse
 import subprocess
 import urllib.parse
 from datetime import datetime, timezone
+from typing import List, Dict, Any, Tuple, Optional
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MARKETPLACE_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
 SKILLS_DIR = os.path.join(MARKETPLACE_ROOT, "skills")
 
-def extract_domain(url_str):
+# Authoritative named constants
+DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 35
+VALID_SEVERITIES = {"critical", "high", "medium", "low"}
+
+
+def extract_domain(url_str: str) -> str:
+    """Extract clean domain name from URL string or fallback to default."""
     if not url_str:
         return "example.com"
     if not url_str.startswith("http://") and not url_str.startswith("https://"):
@@ -26,9 +33,20 @@ def extract_domain(url_str):
     domain = parsed.netloc or parsed.path.split('/')[0]
     return domain.split(":")[0]
 
-def run_subskill(script_path, target_url, timeout=35):
+
+def run_subskill(script_path: str, target_url: str, timeout: int = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS) -> List[Dict[str, Any]]:
+    """Execute a sub-skill script via subprocess with timeout protection."""
     if not os.path.exists(script_path):
-        return []
+        return [{
+            "title": f"Sub-skill Missing Script Warning: {os.path.basename(script_path)}",
+            "severity": "medium",
+            "evidence": f"Expected sub-skill script not found at path: {script_path}",
+            "suggested_action": {
+                "summary": "Verify marketplace skill installation and file integrity.",
+                "priority": "medium"
+            }
+        }]
+
     try:
         cmd = [sys.executable, script_path, "--url", target_url]
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
@@ -36,6 +54,17 @@ def run_subskill(script_path, target_url, timeout=35):
             data = json.loads(res.stdout.strip())
             if isinstance(data, list):
                 return data
+        elif res.returncode != 0:
+            err_msg = res.stderr.strip() or f"Process exited with return code {res.returncode}"
+            return [{
+                "title": f"Sub-skill Execution Error: {os.path.basename(script_path)}",
+                "severity": "medium",
+                "evidence": f"Subprocess exited abnormally: {err_msg}",
+                "suggested_action": {
+                    "summary": "Check sub-skill script output and target endpoint accessibility.",
+                    "priority": "medium"
+                }
+            }]
     except subprocess.TimeoutExpired:
         return [{
             "title": f"Sub-skill Timeout Warning: {os.path.basename(script_path)}",
@@ -46,9 +75,19 @@ def run_subskill(script_path, target_url, timeout=35):
                 "priority": "medium"
             }
         }]
+    except json.JSONDecodeError as jde:
+        return [{
+            "title": f"Sub-skill Malformed Output Error: {os.path.basename(script_path)}",
+            "severity": "medium",
+            "evidence": f"Failed to parse JSON output from sub-skill: {str(jde)}",
+            "suggested_action": {
+                "summary": "Ensure sub-skill emits valid JSON format to stdout.",
+                "priority": "medium"
+            }
+        }]
     except Exception as e:
         return [{
-            "title": f"Sub-skill Execution Error: {os.path.basename(script_path)}",
+            "title": f"Sub-skill Invocation Exception: {os.path.basename(script_path)}",
             "severity": "medium",
             "evidence": f"Subprocess invocation exception: {str(e)}",
             "suggested_action": {
@@ -58,26 +97,20 @@ def run_subskill(script_path, target_url, timeout=35):
         }]
     return []
 
-def orchestrate_audit(target_url, output_filepath=None):
-    domain_name = extract_domain(target_url)
-    audited_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    sub_scripts = [
-        os.path.join(SKILLS_DIR, "crawl-render-audit", "scripts", "check_crawl.py"),
-        os.path.join(SKILLS_DIR, "semantic-authority-audit", "scripts", "check_schema.py"),
-        os.path.join(SKILLS_DIR, "engagement-audit", "scripts", "check_engagement.py")
-    ]
+def format_audit_report(
+    domain_name: str,
+    raw_findings: List[Dict[str, Any]],
+    audited_at: Optional[str] = None
+) -> Dict[str, Any]:
+    """Aggregate raw findings, assign sequential IDs, tally severities, and generate report dict."""
+    if audited_at is None:
+        audited_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    all_raw_findings = []
-    for s_path in sub_scripts:
-        findings = run_subskill(s_path, target_url, timeout=35)
-        all_raw_findings.extend(findings)
-
-    # Format findings with sequential IDs (F-001, F-002, ...)
-    formatted_findings = []
+    formatted_findings: List[Dict[str, Any]] = []
     sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
 
-    for idx, f in enumerate(all_raw_findings, start=1):
+    for idx, f in enumerate(raw_findings, start=1):
         fid = f"F-{idx:03d}"
         sev = str(f.get("severity", "medium")).lower()
         if sev not in sev_counts:
@@ -101,7 +134,7 @@ def orchestrate_audit(target_url, output_filepath=None):
             }
         })
 
-    report = {
+    return {
         "site": domain_name,
         "audited_at": audited_at,
         "summary": {
@@ -114,25 +147,49 @@ def orchestrate_audit(target_url, output_filepath=None):
         "findings": formatted_findings
     }
 
+
+def orchestrate_audit(
+    target_url: str,
+    output_filepath: Optional[str] = None,
+    timeout: int = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
+) -> Tuple[Dict[str, Any], str]:
+    """Run full multi-skill audit pipeline against a target domain."""
+    domain_name = extract_domain(target_url)
+
+    sub_scripts = [
+        os.path.join(SKILLS_DIR, "crawl-render-audit", "scripts", "check_crawl.py"),
+        os.path.join(SKILLS_DIR, "semantic-authority-audit", "scripts", "check_schema.py"),
+        os.path.join(SKILLS_DIR, "engagement-audit", "scripts", "check_engagement.py")
+    ]
+
+    all_raw_findings: List[Dict[str, Any]] = []
+    for s_path in sub_scripts:
+        findings = run_subskill(s_path, target_url, timeout=timeout)
+        all_raw_findings.extend(findings)
+
+    report = format_audit_report(domain_name, all_raw_findings)
     report_json_str = json.dumps(report, indent=2)
 
     if output_filepath:
-        os.makedirs(os.path.dirname(os.path.abspath(output_filepath)), exist_ok=True)
+        output_dir = os.path.dirname(os.path.abspath(output_filepath))
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
         with open(output_filepath, "w", encoding="utf-8") as out_f:
             out_f.write(report_json_str)
 
     return report, report_json_str
 
-def main():
+
+def main() -> None:
     parser = argparse.ArgumentParser(description="Brand AI-Readiness Audit Entrypoint Orchestrator")
     parser.add_argument("--url", default="example.com", help="Target URL or domain to audit")
-    parser.add_argument("--output", default=None, help="Optional output JSON filepath")
-    args, unknown = parser.parse_known_args()
+    parser.add_argument("--output", default=None, help="Optional output JSON filepath to save the report")
+    parser.add_argument("--timeout", type=int, default=DEFAULT_SUBPROCESS_TIMEOUT_SECONDS, help="Timeout in seconds per sub-skill")
+    args = parser.parse_args()
 
-    target = args.url if args.url else (sys.argv[1] if len(sys.argv) > 1 else "example.com")
-    report, report_json_str = orchestrate_audit(target, output_filepath=args.output)
-    
+    _, report_json_str = orchestrate_audit(args.url, output_filepath=args.output, timeout=args.timeout)
     print(report_json_str)
+
 
 if __name__ == "__main__":
     main()

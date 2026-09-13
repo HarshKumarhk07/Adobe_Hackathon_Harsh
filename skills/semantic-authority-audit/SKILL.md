@@ -17,7 +17,7 @@ Use when auditing a site's structured data foundation, entity disambiguation gra
 2. **Execute Schema Check Script**: Run `python scripts/check_schema.py --url <target_url>`.
 3. **Structured Data Audit**: Inspect homepage HTML for `<script type="application/ld+json">`. Emit `high` severity finding if 0 detected, providing a populated Organization JSON-LD template.
 4. **Entity Disambiguation (`sameAs`)**: Inspect JSON-LD for `sameAs` array referencing Wikidata/LinkedIn entity links. Emit `medium` severity finding if missing.
-5. **RAG Quotability Density**: Evaluate paragraphs following `<h2>`/`<h3>` headings. Flag `medium` severity finding if prose blocks > 140 words lack concise declarative lead sentences.
+5. **RAG Quotability Density**: Evaluate paragraphs following `<h2>`/`<h3>` headings. Flag `medium` severity finding if prose blocks > 150 words lack concise declarative lead sentences (first sentence > 25 words).
 6. **Output JSON Findings**: Print standard array of findings objects.
 
 ## Output
